@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Optional
-
 from pydantic import BaseModel
 
 class CreateReverseRequest(BaseModel):
@@ -16,6 +15,3 @@ class ReverseResponse(BaseModel):
     expires_at: Optional[datetime]
     max_files: int
     received_files: int
-
-    class Config:
-        orm_mode = True

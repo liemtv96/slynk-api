@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import List, Optional
-
 from pydantic import BaseModel
 
 class CreateShareRequest(BaseModel):
@@ -14,6 +13,3 @@ class ShareResponse(BaseModel):
     file_ids: list[str]
     expires_at: Optional[datetime]
     views: int
-
-    class Config:
-        orm_mode = True

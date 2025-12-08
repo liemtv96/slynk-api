@@ -1,8 +1,6 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey
+from sqlalchemy import Boolean, Column, ForeignKey, String
 from sqlalchemy.orm import relationship
-
-from core.database import Base
-
+from core.database_sql import Base
 
 class UserSettings(Base):
     __tablename__ = "user_settings"

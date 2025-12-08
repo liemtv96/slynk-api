@@ -1,9 +1,7 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Boolean, Column, DateTime, String
 from sqlalchemy.orm import relationship
-
-from core.database import Base
-
+from core.database_sql import Base
 
 class User(Base):
     __tablename__ = "users"
@@ -14,10 +12,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     email_verified = Column(Boolean, default=False)
     twofa_enabled = Column(Boolean, default=False)
-
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
 
     settings = relationship("UserSettings", back_populates="user", uselist=False)
-    shares = relationship("Share", back_populates="owner")
-    reverse_shares = relationship("ReverseShare", back_populates="owner")
