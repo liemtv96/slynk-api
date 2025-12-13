@@ -1,13 +1,20 @@
 import os
-import shutil
-from uuid import uuid4
-
+import uuid
+from fastapi import UploadFile
 from core.config import settings
 
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-def save_upload_file(file) -> tuple[str, str]:
-    file_id = str(uuid4())
-    dest_path = os.path.join(settings.UPLOAD_DIR, file_id)
-    with open(dest_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    return file_id, dest_path
+def save_upload_file(file: UploadFile) -> tuple[str, str, int]:
+    file_id = str(uuid.uuid4())
+    storage_key = f"{file_id}/{file.filename}"
+    full_path = os.path.join(settings.UPLOAD_DIR, storage_key)
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    size = 0
+    with open(full_path, "wb") as buffer:
+        while True:
+            chunk = file.file.read(1024 * 1024)  # 1MB chunks
+            if not chunk:
+                break
+            size += len(chunk)
+            buffer.write(chunk)
+
+    return file_id, storage_key, size

@@ -3,7 +3,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from core.database import get_db
+from core.database_sql import get_db
 from models.share import Share
 from models.file import File as FileModel
 from routers.auth import get_current_user
@@ -50,7 +50,12 @@ def list_shares(db: Session = Depends(get_db), current=Depends(get_current_user)
     shares = db.query(Share).filter(Share.owner_id == current.id).all()
     result: list[ShareResponse] = []
     for s in shares:
-        file_ids = [f.id for f in s.files]
+        files = (
+            db.query(FileModel)
+            .filter(FileModel.share_id == s.id)
+            .all()
+        )
+        file_ids = [f.id for f in files]
         result.append(
             ShareResponse(
                 id=s.id,

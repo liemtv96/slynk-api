@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from core.database import get_db
+from core.database_sql import get_db
 from core.security import hash_password, verify_password, create_access_token, decode_token
 from models.user import User
 from models.user_settings import UserSettings

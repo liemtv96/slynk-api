@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.database import Base, engine
+from core.database_sql import Base, engine
 from core.config import settings
 from routers import auth, user, shares, reverse, files
 

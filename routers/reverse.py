@@ -3,7 +3,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from core.database import get_db
+from core.database_sql import get_db
 from models.reverse_share import ReverseShare
 from routers.auth import get_current_user
 from schemas.reverse_share import CreateReverseRequest, ReverseResponse
