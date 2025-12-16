@@ -18,3 +18,12 @@ def save_upload_file(file: UploadFile) -> tuple[str, str, int]:
             buffer.write(chunk)
 
     return file_id, storage_key, size
+
+def delete_file(storage_key: str):
+    full_path = os.path.join(settings.UPLOAD_DIR, storage_key)
+    if os.path.exists(full_path):
+        os.remove(full_path)
+
+
+def generate_download_url(storage_key: str, expires_at=None) -> str:
+    return f"/api/v1/files/download/{storage_key}"

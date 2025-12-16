@@ -6,3 +6,5 @@ python-jose[cryptography]
 passlib[argon2]
 pydantic
 pydantic[email]
+boto3
+pydantic-settings
