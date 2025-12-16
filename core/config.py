@@ -8,6 +8,11 @@ class Settings:
     """
 
     def __init__(self) -> None:
+        # AWS
+        self.AWS_REGION: str = os.getenv("AWS_REGION", "ap-southeast-1")
+        self.AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "xxxx")
+        self.AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "xxxx")
+
         # General
         self.PROJECT_NAME: str = os.getenv("SLYNK_PROJECT_NAME", "Slynk API")
         self.ENV: str = os.getenv("SLYNK_ENV", "development")
@@ -21,7 +26,6 @@ class Settings:
         self.MONGO_DB: str = os.getenv("SLYNK_MONGO_DB", "slynk")
 
         # DynamoDB
-        self.AWS_REGION: str = os.getenv("SLYNK_AWS_REGION", "ap-southeast-1")
         self.DYNAMO_PREFIX: str = os.getenv("SLYNK_DYNAMO_PREFIX", "slynk_")
 
         # Storage
@@ -29,6 +33,7 @@ class Settings:
         self.UPLOAD_DIR: str = os.getenv("SLYNK_UPLOAD_DIR", "./uploads")
 
         # S3
+        self.S3_ENDPOINT_URL: str = os.getenv("SLYNK_S3_ENDPOINT_URL", "")
         self.S3_BUCKET: str = os.getenv("SLYNK_S3_BUCKET", "")
         self.S3_PREFIX: str = os.getenv("SLYNK_S3_PREFIX", "uploads/")
         self.PUBLIC_BASE_URL: str = os.getenv("SLYNK_PUBLIC_BASE_URL", "")
