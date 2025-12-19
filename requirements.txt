@@ -8,3 +8,4 @@ pydantic
 pydantic[email]
 boto3
 pydantic-settings
+pytest
