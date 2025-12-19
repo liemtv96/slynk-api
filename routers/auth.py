@@ -5,13 +5,14 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from core.database_sql import get_db
+from core.config import settings
 from core.security import hash_password, verify_password, create_access_token, decode_token
 from models.user import User
 from models.user_settings import UserSettings
 from schemas.auth import SignupRequest, TokenResponse
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_PREFIX}/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     user_id = decode_token(token)

@@ -16,6 +16,7 @@ class Settings:
         # General
         self.PROJECT_NAME: str = os.getenv("SLYNK_PROJECT_NAME", "Slynk API")
         self.ENV: str = os.getenv("SLYNK_ENV", "development")
+        self.API_PREFIX: str = os.getenv("SLYNK_API_PREFIX", "/api/v1")
 
         # Database engines
         self.DB_ENGINE: str = os.getenv("SLYNK_DB_ENGINE", "sqlite").lower()

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.database_sql import Base, engine
@@ -22,11 +22,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
-app.include_router(user.router, prefix="/api/v1/user", tags=["User"])
-app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
-app.include_router(shares.router, prefix="/api/v1/shares", tags=["Shares"])
-app.include_router(reverse.router, prefix="/api/v1/reverse", tags=["Reverse Shares"])
+api_router = APIRouter(prefix=settings.API_PREFIX)
+api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
+api_router.include_router(user.router, prefix="/user", tags=["User"])
+api_router.include_router(files.router, prefix="/files", tags=["Files"])
+api_router.include_router(shares.router, prefix="/shares", tags=["Shares"])
+api_router.include_router(reverse.router, prefix="/reverse", tags=["Reverse Shares"])
+
+app.include_router(api_router)
 
 
 @app.get("/")

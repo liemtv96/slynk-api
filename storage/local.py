@@ -26,4 +26,4 @@ def delete_file(storage_key: str):
 
 
 def generate_download_url(storage_key: str, expires_at=None) -> str:
-    return f"/api/v1/files/download/{storage_key}"
+    return f"{settings.API_PREFIX}/files/download/{storage_key}"
