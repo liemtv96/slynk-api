@@ -1,13 +1,18 @@
+import os
+from datetime import datetime
+
 from fastapi import APIRouter, UploadFile, File as UploadFileType, Depends, HTTPException
+from fastapi.responses import FileResponse as StreamingFileResponse
 from sqlalchemy.orm import Session
 
+from core.config import settings
 from core.database_sql import get_db
 from models.file import File as FileModel
 from models.reverse_share import ReverseShare
+from models.share import Share
 from routers.auth import get_current_user
 from schemas.file import FileResponse
-from storage import save_upload_file, generate_download_url
-from core.config import settings
+from storage import delete_file, generate_download_url, save_upload_file
 
 router = APIRouter()
 
@@ -132,7 +137,7 @@ def get_file_via_share(
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
 
-    if share.expires_at and share.expires_at <= share.created_at:
+    if share.expires_at and share.expires_at <= datetime.utcnow():
         raise HTTPException(status_code=403, detail="Share expired")
     file = (
         db.query(FileModel)
@@ -144,6 +149,8 @@ def get_file_via_share(
     )
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
+    share.views += 1
+    db.commit()
     url = generate_download_url(
         storage_key=file.storage_key,
         expires_at=share.expires_at,
@@ -171,3 +178,17 @@ def delete_file_endpoint(
     db.delete(file)
     db.commit()
     return {"status": "deleted", "file_id": file_id}
+
+@router.get("/download/{storage_key:path}", summary="Download stored file (local storage)")
+def download_file(storage_key: str):
+    if settings.STORAGE_ENGINE != "local":
+        raise HTTPException(status_code=404, detail="Download route only valid for local storage")
+
+    base_dir = os.path.abspath(settings.UPLOAD_DIR)
+    full_path = os.path.abspath(os.path.join(base_dir, storage_key))
+    if not full_path.startswith(base_dir + os.sep) and full_path != base_dir:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    filename = os.path.basename(full_path)
+    return StreamingFileResponse(full_path, filename=filename)
