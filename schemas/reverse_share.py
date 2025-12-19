@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class CreateReverseRequest(BaseModel):
     name: str
@@ -9,6 +9,8 @@ class CreateReverseRequest(BaseModel):
 
 
 class ReverseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     link: str
