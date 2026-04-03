@@ -1,0 +1,204 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Slynk Community API - FastAPI Lambda + cleanup workers
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+  ApiPrefix:
+    Type: String
+    Default: /api/v1
+  CorsOrigins:
+    Type: String
+    Default: "*"
+  PublicBaseUrl:
+    Type: String
+    Default: ""
+  S3Prefix:
+    Type: String
+    Default: uploads/
+  DefaultFileTtlHours:
+    Type: Number
+    Default: 8
+  MaxUploadBytes:
+    Type: Number
+    Default: 3221225472
+  MaxPresignedUrlAge:
+    Type: Number
+    Default: 3600
+  DailyIpCreateLimit:
+    Type: Number
+    Default: 5
+  ExpiryScanSchedule:
+    Type: String
+    Default: rate(5 minutes)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 512
+    Tracing: Active
+    Environment:
+      Variables:
+        SLYNK_PROJECT_NAME: Slynk Community API
+        SLYNK_ENV: !Ref Environment
+        SLYNK_API_PREFIX: !Ref ApiPrefix
+        SLYNK_CORS_ORIGINS: !Ref CorsOrigins
+        SLYNK_S3_BUCKET: !Ref CommunityBucket
+        SLYNK_S3_PREFIX: !Ref S3Prefix
+        SLYNK_S3_ENDPOINT_URL: ""
+        SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref CommunityTable
+        SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
+        SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
+        SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
+        SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
+        SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
+        SLYNK_PUBLIC_BASE_URL: !Ref PublicBaseUrl
+
+Resources:
+  CommunityApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: v1
+
+  CommunityBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CommunityTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: token
+          AttributeType: S
+      KeySchema:
+        - AttributeName: token
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl_epoch
+        Enabled: true
+
+  DeleteQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 120
+      MessageRetentionPeriod: 1209600
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_http.handler
+      Timeout: 30
+      MemorySize: 1024
+      Events:
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CommunityApi
+            Path: /{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CommunityApi
+            Path: /
+            Method: ANY
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: DynamoReadWrite
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Scan
+              Resource: !GetAtt CommunityTable.Arn
+            - Sid: S3PresignAccess
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub "${CommunityBucket.Arn}/*"
+
+  EnqueueExpiredSessionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: aws_lambda_handlers.enqueue_expired_sessions_handler
+      Events:
+        ExpiryScanSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ExpiryScanSchedule
+            Enabled: true
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: DynamoScanUpdate
+              Effect: Allow
+              Action:
+                - dynamodb:Scan
+                - dynamodb:UpdateItem
+              Resource: !GetAtt CommunityTable.Arn
+            - Sid: SendDeleteJobs
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt DeleteQueue.Arn
+
+  ProcessDeleteQueueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: aws_lambda_handlers.process_delete_queue_handler
+      Timeout: 120
+      Events:
+        DeleteQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt DeleteQueue.Arn
+            BatchSize: 10
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: DynamoDelete
+              Effect: Allow
+              Action:
+                - dynamodb:DeleteItem
+              Resource: !GetAtt CommunityTable.Arn
+            - Sid: S3Delete
+              Effect: Allow
+              Action:
+                - s3:DeleteObject
+              Resource: !Sub "${CommunityBucket.Arn}/*"
+            - Sid: QueueReceiveDelete
+              Effect: Allow
+              Action:
+                - sqs:DeleteMessage
+                - sqs:ReceiveMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt DeleteQueue.Arn
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API endpoint
+    Value: !Sub "https://${CommunityApi}.execute-api.${AWS::Region}.amazonaws.com/v1"
+  BucketName:
+    Value: !Ref CommunityBucket
+  DynamoTableName:
+    Value: !Ref CommunityTable
+  DeleteQueueUrl:
+    Value: !Ref DeleteQueue
+  DeleteQueueArn:
+    Value: !GetAtt DeleteQueue.Arn

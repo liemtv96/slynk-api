@@ -1,6 +1,3 @@
-from core.config import settings
+from .s3 import delete_file, generate_download_url, generate_upload_url, save_upload_file
 
-if settings.STORAGE_ENGINE == "s3":
-    from .s3 import save_upload_file, delete_file, generate_download_url
-else:
-    from .local import save_upload_file, delete_file, generate_download_url
+__all__ = ["save_upload_file", "generate_upload_url", "delete_file", "generate_download_url"]

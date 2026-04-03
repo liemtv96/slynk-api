@@ -1,3 +1,3 @@
-from . import auth, user, shares, reverse, files
+from . import slynk
 
-__all__ = ["auth", "user", "shares", "reverse", "files"]
+__all__ = ["slynk"]
