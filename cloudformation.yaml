@@ -32,6 +32,21 @@ Parameters:
   ExpiryScanSchedule:
     Type: String
     Default: rate(5 minutes)
+  GeoEnrichSchedule:
+    Type: String
+    Default: rate(15 minutes)
+  GeoEnrichEnabled:
+    Type: String
+    Default: "true"
+  GeoEnrichBatchSize:
+    Type: Number
+    Default: 25
+  GeoLookupBaseUrl:
+    Type: String
+    Default: https://ipapi.co
+  GeoLookupToken:
+    Type: String
+    Default: ""
   LambdaCodeS3Bucket:
     Type: String
     Description: S3 bucket containing the deployment zip for all Lambda functions.
@@ -179,6 +194,29 @@ Resources:
                   - sqs:GetQueueAttributes
                 Resource: !GetAtt DeleteQueue.Arn
 
+  GeoEnrichFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: GeoEnrichFunctionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt CommunityTable.Arn
+
   ApiFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -208,6 +246,11 @@ Resources:
           SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
           SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
           SLYNK_PUBLIC_BASE_URL: !Ref PublicBaseUrl
+          SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
+          SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
+          SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
+          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
+          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
 
   EnqueueExpiredSessionsFunction:
     Type: AWS::Lambda::Function
@@ -238,6 +281,11 @@ Resources:
           SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
           SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
           SLYNK_PUBLIC_BASE_URL: !Ref PublicBaseUrl
+          SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
+          SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
+          SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
+          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
+          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
 
   ProcessDeleteQueueFunction:
     Type: AWS::Lambda::Function
@@ -268,6 +316,46 @@ Resources:
           SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
           SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
           SLYNK_PUBLIC_BASE_URL: !Ref PublicBaseUrl
+          SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
+          SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
+          SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
+          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
+          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
+
+  EnrichSessionGeolocationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "slynk-api-enrich-geo-${Environment}"
+      Role: !GetAtt GeoEnrichFunctionRole.Arn
+      Runtime: python3.12
+      Handler: aws_lambda_handlers.enrich_session_geolocation_handler
+      Timeout: 30
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+        S3ObjectVersion: !If [HasObjectVersion, !Ref LambdaCodeS3ObjectVersion, !Ref AWS::NoValue]
+      Environment:
+        Variables:
+          SLYNK_PROJECT_NAME: Slynk Community API
+          SLYNK_ENV: !Ref Environment
+          SLYNK_API_PREFIX: !Ref ApiPrefix
+          SLYNK_CORS_ORIGINS: !Ref CorsOrigins
+          SLYNK_S3_BUCKET: !Ref CommunityBucket
+          SLYNK_S3_PREFIX: !Ref S3Prefix
+          SLYNK_S3_ENDPOINT_URL: ""
+          SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref CommunityTable
+          SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
+          SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
+          SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
+          SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
+          SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
+          SLYNK_PUBLIC_BASE_URL: !Ref PublicBaseUrl
+          SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
+          SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
+          SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
+          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
+          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
 
   ApiLambdaIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -311,6 +399,24 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt ExpiryScheduleRule.Arn
+
+  GeoEnrichScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "slynk-api-geo-enrich-${Environment}"
+      ScheduleExpression: !Ref GeoEnrichSchedule
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt EnrichSessionGeolocationFunction.Arn
+          Id: EnrichSessionGeolocationTarget
+
+  GeoEnrichInvokePermissionFromEvents:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref EnrichSessionGeolocationFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GeoEnrichScheduleRule.Arn
 
   DeleteQueueEventSourceMapping:
     Type: AWS::Lambda::EventSourceMapping

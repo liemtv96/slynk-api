@@ -35,6 +35,61 @@ class CommunitySessionRepository:
     def delete(self, token: str) -> None:
         self._table().delete_item(Key={"token": token})
 
+    def list_sessions(self) -> list[dict]:
+        items: list[dict] = []
+        scan_kwargs: dict = {}
+
+        while True:
+            response = self._table().scan(**scan_kwargs)
+            items.extend(
+                item
+                for item in response.get("Items", [])
+                if not str(item.get("token", "")).startswith("quota#")
+            )
+            last_evaluated_key = response.get("LastEvaluatedKey")
+            if not last_evaluated_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_evaluated_key
+
+        return items
+
+    def list_geo_enrichment_candidates(self, *, limit: int) -> list[dict]:
+        candidates: list[dict] = []
+        scan_kwargs: dict = {}
+
+        while len(candidates) < limit:
+            response = self._table().scan(**scan_kwargs)
+            for item in response.get("Items", []):
+                token = str(item.get("token", ""))
+                if token.startswith("quota#"):
+                    continue
+
+                analytics = item.get("analytics", {})
+                if not item.get("client_ip"):
+                    continue
+                if analytics.get("geo_status") in {"enriched", "skipped_non_public_ip"}:
+                    continue
+                if analytics.get("latitude") is not None and analytics.get("longitude") is not None:
+                    continue
+
+                candidates.append(item)
+                if len(candidates) >= limit:
+                    break
+
+            last_evaluated_key = response.get("LastEvaluatedKey")
+            if not last_evaluated_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_evaluated_key
+
+        return candidates
+
+    def update_analytics(self, token: str, analytics: dict) -> None:
+        self._table().update_item(
+            Key={"token": token},
+            UpdateExpression="SET analytics = :analytics",
+            ExpressionAttributeValues={":analytics": analytics},
+        )
+
     def consume_daily_ip_quota(self, *, ip_address: str, day_key: str, limit: int, ttl_epoch: int, now_iso: str) -> bool:
         from botocore.exceptions import ClientError
 

@@ -33,6 +33,11 @@ class Settings:
         self.DEFAULT_FILE_TTL_HOURS: int = int(os.getenv("SLYNK_DEFAULT_FILE_TTL_HOURS", "8"))
         self.MAX_UPLOAD_BYTES: int = int(os.getenv("SLYNK_MAX_UPLOAD_BYTES", str(3 * 1024 * 1024 * 1024)))
         self.DAILY_IP_CREATE_LIMIT: int = int(os.getenv("SLYNK_DAILY_IP_CREATE_LIMIT", "5"))
+        self.GEO_ENRICH_ENABLED: bool = os.getenv("SLYNK_GEO_ENRICH_ENABLED", "true").lower() == "true"
+        self.GEO_ENRICH_BATCH_SIZE: int = int(os.getenv("SLYNK_GEO_ENRICH_BATCH_SIZE", "25"))
+        self.GEO_ENRICH_TIMEOUT_SECONDS: int = int(os.getenv("SLYNK_GEO_ENRICH_TIMEOUT_SECONDS", "5"))
+        self.GEO_LOOKUP_BASE_URL: str = os.getenv("SLYNK_GEO_LOOKUP_BASE_URL", "https://ipapi.co")
+        self.GEO_LOOKUP_TOKEN: str = os.getenv("SLYNK_GEO_LOOKUP_TOKEN", "")
 
         # SQS
         self.SQS_DELETE_QUEUE_URL: str = os.getenv("SLYNK_SQS_DELETE_QUEUE_URL", "")

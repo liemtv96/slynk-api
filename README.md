@@ -66,6 +66,10 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - `SLYNK_MAX_UPLOAD_BYTES=3221225472`
 - `SLYNK_DAILY_IP_CREATE_LIMIT=5`
 - `SLYNK_PUBLIC_BASE_URL`
+- `SLYNK_GEO_ENRICH_ENABLED=true`
+- `SLYNK_GEO_ENRICH_BATCH_SIZE=25`
+- `SLYNK_GEO_LOOKUP_BASE_URL=https://ipapi.co`
+- `SLYNK_GEO_LOOKUP_TOKEN`
 
 ## IP Daily Limit
 
@@ -73,6 +77,23 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - Default limit is `5` session creates per IP per UTC day.
 - Configure with `SLYNK_DAILY_IP_CREATE_LIMIT`.
 - Client IP is resolved from `X-Forwarded-For` (first value), then `X-Real-IP`, then direct socket IP.
+
+## Session Analytics
+
+- Each created session stores request analytics in DynamoDB for dashboarding.
+- Captured fields include `client_ip`, `ip_source`, `forwarded_for`, `real_ip`, `user_agent`, `referer`, `origin`, `request_id`, and `created_date`.
+- Device-oriented fields are inferred from request headers: `browser`, `os`, `device_type`, `client_type`, `platform_hint`, and `mobile_hint`.
+- These values are heuristics for dashboards. Browser headers can usually distinguish desktop vs mobile web and OS family, but not the exact physical machine model with high confidence.
+- The daily IP quota still uses the resolved `client_ip` and remains separate from the session record.
+- `GET /api/v1/community/analytics/overview` returns public-safe dashboard data with counts and recent session analytics, excluding raw IP/header fields from the response payload.
+
+## Geo Enrichment
+
+- IP addresses are stored internally in DynamoDB and are not returned by the public analytics endpoint.
+- A scheduled background job enriches stored sessions with `country`, `region`, `city`, `latitude`, and `longitude`.
+- The local entrypoint is [enrich_session_geolocation.py](/home/riottecboi/PycharmProjects/slynk-api-lite/scripts/enrich_session_geolocation.py).
+- Non-public IPs such as `127.0.0.1` or RFC1918 addresses are skipped and marked internally so they are not retried forever.
+- The default provider configuration targets `https://ipapi.co/<ip>/json/`. Review provider limits before using this in production.
 
 ## Run Locally
 
