@@ -40,6 +40,7 @@ class Settings:
         self.GEO_LOOKUP_BASE_URL: str = os.getenv("SLYNK_GEO_LOOKUP_BASE_URL", "https://ipapi.co")
         self.GEO_LOOKUP_TOKEN: str = os.getenv("SLYNK_GEO_LOOKUP_TOKEN", "")
         self.ANALYTICS_API_KEY: str = os.getenv("SLYNK_ANALYTICS_API_KEY", "")
+        self.CLOUDFRONT_ORIGIN_SECRET: str = os.getenv("SLYNK_CLOUDFRONT_ORIGIN_SECRET", "")
 
         # SQS
         self.SQS_DELETE_QUEUE_URL: str = os.getenv("SLYNK_SQS_DELETE_QUEUE_URL", "")

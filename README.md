@@ -70,6 +70,7 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - `SLYNK_GEO_LOOKUP_BASE_URL=https://ipapi.co`
 - `SLYNK_GEO_LOOKUP_TOKEN`
 - `SLYNK_ANALYTICS_API_KEY`
+- `SLYNK_CLOUDFRONT_ORIGIN_SECRET`
 
 ## IP Daily Limit
 
@@ -87,6 +88,7 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - The daily IP quota still uses the resolved `client_ip` and remains separate from the session record.
 - `GET /lite/analytics/overview` returns public-safe dashboard data with counts and recent session analytics, excluding raw IP/header fields from the response payload.
 - If `SLYNK_ANALYTICS_API_KEY` is set, all API endpoints require the `X-API-Key` header.
+- If `SLYNK_CLOUDFRONT_ORIGIN_SECRET` is set, `/lite` requests must arrive through CloudFront with the injected `X-Slynk-Origin-Secret` header. Direct API Gateway access is rejected with `403`.
 
 ## Geo Enrichment
 
@@ -157,7 +159,7 @@ Recommended guided answers:
 - Save arguments to configuration file: `Yes`
 
 After deploy:
-- Read the `ApiUrl` output from CloudFormation stack outputs.
+- Read the `ApiCloudFrontUrl` output from CloudFormation stack outputs and use it as the frontend API base URL.
 - Set `SLYNK_PUBLIC_BASE_URL` parameter to your frontend base URL for share links.
 
 ## AWS Lambda (Plain CloudFormation)
@@ -193,8 +195,11 @@ aws cloudformation deploy \
   --parameter-overrides \
     LambdaCodeS3Bucket=<artifact-bucket> \
     LambdaCodeS3Key=<artifact-key>.zip \
+    CloudFrontOriginSecret=<long-random-secret> \
     Environment=prod
 ```
+
+Use the `ApiCloudFrontUrl` stack output in the frontend. The raw `ApiUrl` is the direct API Gateway origin and should not be the browser-facing base URL once origin protection is enabled.
 
 ## Tests
 

@@ -48,6 +48,10 @@ Parameters:
   AnalyticsApiKey:
     Type: String
     Default: ""
+  CloudFrontOriginSecret:
+    Type: String
+    NoEcho: true
+    Description: Shared secret that CloudFront injects to the API origin so direct origin access can be rejected.
   ApiCloudFrontPriceClass:
     Type: String
     Default: PriceClass_100
@@ -83,6 +87,7 @@ Globals:
         SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
         SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
         SLYNK_ANALYTICS_API_KEY: !Ref AnalyticsApiKey
+        SLYNK_CLOUDFRONT_ORIGIN_SECRET: !Ref CloudFrontOriginSecret
 
 Resources:
   LiteApi:
@@ -101,6 +106,9 @@ Resources:
         Origins:
           - Id: ApiGatewayOrigin
             DomainName: !Select [2, !Split ["/", !GetAtt LiteApi.ApiEndpoint]]
+            OriginCustomHeaders:
+              - HeaderName: X-Slynk-Origin-Secret
+                HeaderValue: !Ref CloudFrontOriginSecret
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               HTTPSPort: 443
