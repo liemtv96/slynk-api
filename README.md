@@ -1,4 +1,4 @@
-# Community Upload API
+# Lite Upload API
 
 Minimal serverless backend for temporary file sharing with direct browser uploads to S3.
 
@@ -29,11 +29,11 @@ The top-level `core/`, `routers/`, `schemas/`, and `storage/` modules remain as 
 
 ## Runtime Flow
 
-1. `POST /api/v1/community/sessions` creates a pending upload session and presigned S3 upload URLs.
+1. `POST /lite/sessions` creates a pending upload session and presigned S3 upload URLs.
 2. Browser uploads files directly to S3.
-3. `POST /api/v1/community/sessions/{token}/complete` marks the session `active` and returns the share URL.
-4. `GET /api/v1/community/shares/{token}` returns public share metadata.
-5. `GET /api/v1/community/shares/{token}/files/{file_id}/download` returns a presigned S3 download URL.
+3. `POST /lite/sessions/{token}/complete` marks the session `active` and returns the share URL.
+4. `GET /lite/shares/{token}` returns public share metadata.
+5. `GET /lite/shares/{token}/files/{file_id}/download` returns a presigned S3 download URL.
 6. Background job scans for expired active sessions and enqueues delete jobs.
 7. Queue consumer deletes S3 objects and removes DynamoDB records.
 
@@ -48,14 +48,13 @@ The top-level `core/`, `routers/`, `schemas/`, and `storage/` modules remain as 
 
 ## Lambda Handlers
 
-Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmProjects/slynk-api-community/aws_lambda_handlers.py):
+Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmProjects/slynk-api-lite/aws_lambda_handlers.py):
 
 - `enqueue_expired_sessions_handler`
 - `process_delete_queue_handler`
 
 ## Required Environment
 
-- `SLYNK_API_PREFIX`
 - `SLYNK_CORS_ORIGINS`
 - `SLYNK_S3_BUCKET`
 - `SLYNK_S3_PREFIX`
@@ -74,7 +73,7 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 
 ## IP Daily Limit
 
-- Session creation (`POST /api/v1/community/sessions`) is limited per client IP.
+- Session creation (`POST /lite/sessions`) is limited per client IP.
 - Default limit is `5` session creates per IP per UTC day.
 - Configure with `SLYNK_DAILY_IP_CREATE_LIMIT`.
 - Client IP is resolved from `X-Forwarded-For` (first value), then `X-Real-IP`, then direct socket IP.
@@ -86,7 +85,7 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - Device-oriented fields are inferred from request headers: `browser`, `os`, `device_type`, `client_type`, `platform_hint`, and `mobile_hint`.
 - These values are heuristics for dashboards. Browser headers can usually distinguish desktop vs mobile web and OS family, but not the exact physical machine model with high confidence.
 - The daily IP quota still uses the resolved `client_ip` and remains separate from the session record.
-- `GET /api/v1/community/analytics/overview` returns public-safe dashboard data with counts and recent session analytics, excluding raw IP/header fields from the response payload.
+- `GET /lite/analytics/overview` returns public-safe dashboard data with counts and recent session analytics, excluding raw IP/header fields from the response payload.
 - If `SLYNK_ANALYTICS_API_KEY` is set, all API endpoints require the `X-API-Key` header.
 
 ## Geo Enrichment
@@ -117,8 +116,8 @@ uvicorn main:app --reload --port 8000
 ## Docker Compose
 
 Files included:
-- [Dockerfile](/home/tranvinhliem/PycharmProjects/slynk-api-community/Dockerfile)
-- [docker-compose.yml](/home/tranvinhliem/PycharmProjects/slynk-api-community/docker-compose.yml)
+- [Dockerfile](/home/tranvinhliem/PycharmProjects/slynk-api-lite/Dockerfile)
+- [docker-compose.yml](/home/tranvinhliem/PycharmProjects/slynk-api-lite/docker-compose.yml)
 
 Run:
 
@@ -136,12 +135,12 @@ docker compose down
 ## AWS Lambda (SAM)
 
 This repo now includes:
-- [template.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-community/template.yaml) with:
+- [template.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-lite/template.yaml) with:
   - `ApiFunction` (FastAPI via `lambda_http.handler`)
   - `EnqueueExpiredSessionsFunction` (scheduled scan)
   - `ProcessDeleteQueueFunction` (SQS consumer)
   - Managed `S3`, `DynamoDB`, `SQS`, and `HttpApi` resources
-- [lambda_http.py](/home/tranvinhliem/PycharmProjects/slynk-api-community/lambda_http.py) (`Mangum` adapter)
+- [lambda_http.py](/home/tranvinhliem/PycharmProjects/slynk-api-lite/lambda_http.py) (`Mangum` adapter)
 
 Build and deploy:
 
@@ -151,7 +150,7 @@ sam deploy --guided
 ```
 
 Recommended guided answers:
-- Stack name: `slynk-community-api`
+- Stack name: `slynk-lite-api`
 - Region: your AWS region
 - Confirm changes before deploy: `Yes`
 - Allow SAM CLI IAM role creation: `Yes`
@@ -164,7 +163,7 @@ After deploy:
 ## AWS Lambda (Plain CloudFormation)
 
 Template:
-- [cloudformation.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-community/cloudformation.yaml)
+- [cloudformation.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-lite/cloudformation.yaml)
 
 This template is non-SAM and expects a prebuilt Lambda zip uploaded to S3.
 

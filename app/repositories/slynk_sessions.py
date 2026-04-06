@@ -3,7 +3,7 @@ from app.config import settings
 
 
 class CommunitySessionRepository:
-    """Persistence operations for community upload sessions."""
+    """Persistence operations for lite upload sessions."""
 
     @staticmethod
     def _table():

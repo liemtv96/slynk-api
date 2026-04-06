@@ -9,11 +9,11 @@ class Settings:
         self.AWS_REGION: str = os.getenv("AWS_REGION", "ap-southeast-1")
         self.AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "xxxx")
         self.AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "xxxx")
+        self.AWS_SESSION_TOKEN: str | None = os.getenv("AWS_SESSION_TOKEN", "").strip() or None
 
         # General
-        self.PROJECT_NAME: str = os.getenv("SLYNK_PROJECT_NAME", "Slynk Community API")
+        self.PROJECT_NAME: str = os.getenv("SLYNK_PROJECT_NAME", "Slynk Lite API")
         self.ENV: str = os.getenv("SLYNK_ENV", "development")
-        self.API_PREFIX: str = os.getenv("SLYNK_API_PREFIX", "/api/v1")
         self.CORS_ORIGINS: list[str] = [
             origin.strip()
             for origin in os.getenv("SLYNK_CORS_ORIGINS", "*").split(",")
@@ -25,7 +25,8 @@ class Settings:
         self.DYNAMO_COMMUNITY_TABLE: str = os.getenv("SLYNK_DYNAMO_COMMUNITY_TABLE", f"{self.DYNAMO_PREFIX}community_files")
 
         # S3
-        self.S3_ENDPOINT_URL: str = os.getenv("SLYNK_S3_ENDPOINT_URL", "")
+        s3_endpoint_url = os.getenv("SLYNK_S3_ENDPOINT_URL", "").strip()
+        self.S3_ENDPOINT_URL: str | None = s3_endpoint_url or None
         self.S3_BUCKET: str = os.getenv("SLYNK_S3_BUCKET", "")
         self.S3_PREFIX: str = os.getenv("SLYNK_S3_PREFIX", "uploads/")
         self.PUBLIC_BASE_URL: str = os.getenv("SLYNK_PUBLIC_BASE_URL", "")

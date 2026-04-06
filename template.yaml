@@ -1,14 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Slynk Community API - FastAPI Lambda + cleanup workers
+Description: Slynk Lite API - FastAPI Lambda + cleanup workers
 
 Parameters:
   Environment:
     Type: String
     Default: prod
-  ApiPrefix:
-    Type: String
-    Default: /api/v1
   CorsOrigins:
     Type: String
     Default: "*"
@@ -60,14 +57,13 @@ Globals:
     Tracing: Active
     Environment:
       Variables:
-        SLYNK_PROJECT_NAME: Slynk Community API
+        SLYNK_PROJECT_NAME: Slynk Lite API
         SLYNK_ENV: !Ref Environment
-        SLYNK_API_PREFIX: !Ref ApiPrefix
+        SLYNK_API_GATEWAY_BASE_PATH: /
         SLYNK_CORS_ORIGINS: !Ref CorsOrigins
-        SLYNK_S3_BUCKET: !Ref CommunityBucket
+        SLYNK_S3_BUCKET: !Ref LiteBucket
         SLYNK_S3_PREFIX: !Ref S3Prefix
-        SLYNK_S3_ENDPOINT_URL: ""
-        SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref CommunityTable
+        SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref LiteTable
         SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
         SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
         SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
@@ -82,21 +78,34 @@ Globals:
         SLYNK_ANALYTICS_API_KEY: !Ref AnalyticsApiKey
 
 Resources:
-  CommunityApi:
+  LiteApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      StageName: v1
+      StageName: $default
 
-  CommunityBucket:
+  LiteBucket:
     Type: AWS::S3::Bucket
     Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedMethods:
+              - PUT
+              - GET
+              - HEAD
+            AllowedHeaders:
+              - "*"
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3000
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-  CommunityTable:
+  LiteTable:
     Type: AWS::DynamoDB::Table
     Properties:
       BillingMode: PAY_PER_REQUEST
@@ -127,13 +136,13 @@ Resources:
         ApiProxy:
           Type: HttpApi
           Properties:
-            ApiId: !Ref CommunityApi
+            ApiId: !Ref LiteApi
             Path: /{proxy+}
             Method: ANY
         ApiRoot:
           Type: HttpApi
           Properties:
-            ApiId: !Ref CommunityApi
+            ApiId: !Ref LiteApi
             Path: /
             Method: ANY
       Policies:
@@ -147,13 +156,13 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:DeleteItem
                 - dynamodb:Scan
-              Resource: !GetAtt CommunityTable.Arn
+              Resource: !GetAtt LiteTable.Arn
             - Sid: S3PresignAccess
               Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
-              Resource: !Sub "${CommunityBucket.Arn}/*"
+              Resource: !Sub "${LiteBucket.Arn}/*"
 
   EnqueueExpiredSessionsFunction:
     Type: AWS::Serverless::Function
@@ -174,7 +183,7 @@ Resources:
               Action:
                 - dynamodb:Scan
                 - dynamodb:UpdateItem
-              Resource: !GetAtt CommunityTable.Arn
+              Resource: !GetAtt LiteTable.Arn
             - Sid: SendDeleteJobs
               Effect: Allow
               Action:
@@ -200,12 +209,12 @@ Resources:
               Effect: Allow
               Action:
                 - dynamodb:DeleteItem
-              Resource: !GetAtt CommunityTable.Arn
+              Resource: !GetAtt LiteTable.Arn
             - Sid: S3Delete
               Effect: Allow
               Action:
                 - s3:DeleteObject
-              Resource: !Sub "${CommunityBucket.Arn}/*"
+              Resource: !Sub "${LiteBucket.Arn}/*"
             - Sid: QueueReceiveDelete
               Effect: Allow
               Action:
@@ -233,16 +242,16 @@ Resources:
               Action:
                 - dynamodb:Scan
                 - dynamodb:UpdateItem
-              Resource: !GetAtt CommunityTable.Arn
+              Resource: !GetAtt LiteTable.Arn
 
 Outputs:
   ApiUrl:
     Description: HTTP API endpoint
-    Value: !Sub "https://${CommunityApi}.execute-api.${AWS::Region}.amazonaws.com/v1"
+    Value: !Sub "https://${LiteApi}.execute-api.${AWS::Region}.amazonaws.com"
   BucketName:
-    Value: !Ref CommunityBucket
+    Value: !Ref LiteBucket
   DynamoTableName:
-    Value: !Ref CommunityTable
+    Value: !Ref LiteTable
   DeleteQueueUrl:
     Value: !Ref DeleteQueue
   DeleteQueueArn:

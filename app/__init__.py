@@ -1,2 +1,1 @@
-"""Application package for the community upload API."""
-
+"""Application package for the lite upload API."""

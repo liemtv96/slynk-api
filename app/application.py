@@ -1,4 +1,4 @@
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import slynk
@@ -9,7 +9,7 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title=settings.PROJECT_NAME,
         version="1.0.0",
-        description="Minimal serverless community backend for temporary file sharing.",
+        description="Minimal serverless lite backend for temporary file sharing.",
     )
 
     application.add_middleware(
@@ -20,9 +20,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    api_router = APIRouter(prefix=settings.API_PREFIX)
-    api_router.include_router(slynk.router, prefix="/community", tags=["Community"])
-    application.include_router(api_router)
+    application.include_router(slynk.router, prefix="/lite", tags=["Lite"])
 
     @application.get("/")
     def root():
