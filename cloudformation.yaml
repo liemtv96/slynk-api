@@ -57,6 +57,13 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional S3 object version for immutable deployments.
+  ApiCloudFrontPriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues:
+      - PriceClass_All
+      - PriceClass_200
+      - PriceClass_100
 
 Conditions:
   HasObjectVersion: !Not [!Equals [!Ref LambdaCodeS3ObjectVersion, ""]]
@@ -74,6 +81,41 @@ Resources:
       ApiId: !Ref LiteApi
       StageName: $default
       AutoDeploy: true
+
+  ApiCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2
+        IPV6Enabled: true
+        PriceClass: !Ref ApiCloudFrontPriceClass
+        Origins:
+          - Id: ApiGatewayOrigin
+            DomainName: !Select [2, !Split ["/", !GetAtt LiteApi.ApiEndpoint]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              HTTPSPort: 443
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: ApiGatewayOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - PATCH
+            - POST
+            - DELETE
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
 
   LiteBucket:
     Type: AWS::S3::Bucket
@@ -440,6 +482,9 @@ Outputs:
   ApiUrl:
     Description: HTTP API endpoint base URL with stage
     Value: !GetAtt LiteApi.ApiEndpoint
+  ApiCloudFrontUrl:
+    Description: CloudFront URL in front of the API
+    Value: !Sub "https://${ApiCloudFrontDistribution.DomainName}"
   BucketName:
     Value: !Ref LiteBucket
   DynamoTableName:
