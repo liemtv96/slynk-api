@@ -70,6 +70,7 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - `SLYNK_GEO_ENRICH_BATCH_SIZE=25`
 - `SLYNK_GEO_LOOKUP_BASE_URL=https://ipapi.co`
 - `SLYNK_GEO_LOOKUP_TOKEN`
+- `SLYNK_ANALYTICS_API_KEY`
 
 ## IP Daily Limit
 
@@ -86,6 +87,7 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - These values are heuristics for dashboards. Browser headers can usually distinguish desktop vs mobile web and OS family, but not the exact physical machine model with high confidence.
 - The daily IP quota still uses the resolved `client_ip` and remains separate from the session record.
 - `GET /api/v1/community/analytics/overview` returns public-safe dashboard data with counts and recent session analytics, excluding raw IP/header fields from the response payload.
+- If `SLYNK_ANALYTICS_API_KEY` is set, all API endpoints require the `X-API-Key` header.
 
 ## Geo Enrichment
 

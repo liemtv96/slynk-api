@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Query, Request
+from secrets import compare_digest
+
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
 from app.api.schemas.slynk import (
@@ -8,6 +10,7 @@ from app.api.schemas.slynk import (
     CommunitySessionResponse,
     CommunityShareResponse,
 )
+from app.config import settings
 from app.services.slynk_sharing import CommunitySharingService
 
 router = APIRouter()
@@ -114,24 +117,46 @@ def _build_client_context(request: Request) -> dict:
     }
 
 
+def _require_analytics_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    expected_key = settings.ANALYTICS_API_KEY
+    if not expected_key:
+        return
+
+    if not x_api_key or not compare_digest(x_api_key, expected_key):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+
 @router.post("/sessions", response_model=CommunitySessionResponse, summary="Create upload session")
-def create_session(payload: CommunitySessionCreateRequest, request: Request):
+def create_session(
+    payload: CommunitySessionCreateRequest,
+    request: Request,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
+    _require_analytics_api_key(x_api_key)
     client_context = _build_client_context(request)
     return service.create_session(payload, client_context=client_context)
 
 
 @router.post("/sessions/{token}/complete", response_model=CommunitySessionCompleteResponse, summary="Complete upload session")
-def complete_session(token: str):
+def complete_session(token: str, x_api_key: str | None = Header(default=None, alias="X-API-Key")):
+    _require_analytics_api_key(x_api_key)
     return service.complete_session(token)
 
 
 @router.get("/shares/{token}", response_model=CommunityShareResponse, summary="Get public share metadata")
-def get_share(token: str):
+def get_share(token: str, x_api_key: str | None = Header(default=None, alias="X-API-Key")):
+    _require_analytics_api_key(x_api_key)
     return service.get_share(token)
 
 
 @router.get("/shares/{token}/files/{file_id}/download", summary="Get public file download url")
-def get_download(token: str, file_id: str, format: str | None = Query(default=None)):
+def get_download(
+    token: str,
+    file_id: str,
+    format: str | None = Query(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
+    _require_analytics_api_key(x_api_key)
     url = service.get_download_url(token=token, file_id=file_id)
     if format == "json":
         return {"url": url}
@@ -139,5 +164,9 @@ def get_download(token: str, file_id: str, format: str | None = Query(default=No
 
 
 @router.get("/analytics/overview", response_model=CommunityAnalyticsOverviewResponse, summary="Get analytics overview")
-def get_analytics_overview(limit: int = Query(default=100, ge=1, le=500)):
+def get_analytics_overview(
+    limit: int = Query(default=100, ge=1, le=500),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
+    _require_analytics_api_key(x_api_key)
     return service.get_analytics_overview(limit=limit)

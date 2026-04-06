@@ -47,6 +47,9 @@ Parameters:
   GeoLookupToken:
     Type: String
     Default: ""
+  AnalyticsApiKey:
+    Type: String
+    Default: ""
   LambdaCodeS3Bucket:
     Type: String
     Description: S3 bucket containing the deployment zip for all Lambda functions.
@@ -251,6 +254,7 @@ Resources:
           SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
           SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
           SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
+          SLYNK_ANALYTICS_API_KEY: !Ref AnalyticsApiKey
 
   EnqueueExpiredSessionsFunction:
     Type: AWS::Lambda::Function

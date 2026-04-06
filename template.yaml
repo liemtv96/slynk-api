@@ -48,6 +48,9 @@ Parameters:
   GeoLookupToken:
     Type: String
     Default: ""
+  AnalyticsApiKey:
+    Type: String
+    Default: ""
 
 Globals:
   Function:
@@ -76,6 +79,7 @@ Globals:
         SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
         SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
         SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
+        SLYNK_ANALYTICS_API_KEY: !Ref AnalyticsApiKey
 
 Resources:
   CommunityApi:

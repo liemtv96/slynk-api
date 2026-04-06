@@ -38,6 +38,7 @@ class Settings:
         self.GEO_ENRICH_TIMEOUT_SECONDS: int = int(os.getenv("SLYNK_GEO_ENRICH_TIMEOUT_SECONDS", "5"))
         self.GEO_LOOKUP_BASE_URL: str = os.getenv("SLYNK_GEO_LOOKUP_BASE_URL", "https://ipapi.co")
         self.GEO_LOOKUP_TOKEN: str = os.getenv("SLYNK_GEO_LOOKUP_TOKEN", "")
+        self.ANALYTICS_API_KEY: str = os.getenv("SLYNK_ANALYTICS_API_KEY", "")
 
         # SQS
         self.SQS_DELETE_QUEUE_URL: str = os.getenv("SLYNK_SQS_DELETE_QUEUE_URL", "")
