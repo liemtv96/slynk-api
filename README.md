@@ -62,15 +62,16 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - `SLYNK_DYNAMO_COMMUNITY_TABLE`
 - `SLYNK_SQS_DELETE_QUEUE_URL`
 - `SLYNK_DEFAULT_FILE_TTL_HOURS=8`
+- `SLYNK_PENDING_SESSION_STALE_HOURS=24`
 - `SLYNK_MAX_UPLOAD_BYTES=3221225472`
 - `SLYNK_DAILY_IP_CREATE_LIMIT=5`
 - `SLYNK_PUBLIC_BASE_URL`
 - `SLYNK_GEO_ENRICH_ENABLED=true`
 - `SLYNK_GEO_ENRICH_BATCH_SIZE=25`
-- `SLYNK_GEO_LOOKUP_BASE_URL=https://ipapi.co`
-- `SLYNK_GEO_LOOKUP_TOKEN`
+- `SLYNK_DYNAMO_STATISTICS_TABLE`
 - `SLYNK_ANALYTICS_API_KEY`
 - `SLYNK_CLOUDFRONT_ORIGIN_SECRET`
+- `SLYNK_PRIVATE_BEARER_TOKEN`
 
 ## IP Daily Limit
 
@@ -82,6 +83,9 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 ## Session Analytics
 
 - Each created session stores request analytics in DynamoDB for dashboarding.
+- Aggregate counters now live in a dedicated statistics table so totals survive session cleanup.
+- Expired `active` sessions are cleaned up on the normal expiry schedule; `pending` sessions are only deleted after they remain unchanged past `SLYNK_PENDING_SESSION_STALE_HOURS`.
+- Geolocation enrichment is designed for a local MaxMind GeoIP database rather than a remote IP API.
 - Captured fields include `client_ip`, `ip_source`, `forwarded_for`, `real_ip`, `user_agent`, `referer`, `origin`, `request_id`, and `created_date`.
 - Device-oriented fields are inferred from request headers: `browser`, `os`, `device_type`, `client_type`, `platform_hint`, and `mobile_hint`.
 - These values are heuristics for dashboards. Browser headers can usually distinguish desktop vs mobile web and OS family, but not the exact physical machine model with high confidence.
@@ -175,7 +179,7 @@ This template is non-SAM and expects a prebuilt Lambda zip uploaded to S3.
 rm -rf build
 mkdir -p build
 pip install -r requirements.txt -t build
-cp -r app core routers schemas storage scripts *.py build/
+cp -r app core routers schemas storage scripts ipdb *.py build/
 cd build && zip -r ../deployment.zip . && cd ..
 ```
 

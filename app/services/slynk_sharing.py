@@ -17,14 +17,20 @@ from app.api.schemas.slynk import (
 )
 from app.config import settings
 from app.repositories.slynk_sessions import CommunitySessionRepository
+from app.repositories.slynk_statistics import CommunityStatisticsRepository
 from app.storage.s3 import generate_download_url, generate_upload_url
 
 
 class CommunitySharingService:
     """Core behavior for creating, activating, and reading share sessions."""
 
-    def __init__(self, repository: CommunitySessionRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: CommunitySessionRepository | None = None,
+        statistics: CommunityStatisticsRepository | None = None,
+    ) -> None:
         self.repository = repository or CommunitySessionRepository()
+        self.statistics = statistics or CommunityStatisticsRepository()
 
     @staticmethod
     def utcnow() -> datetime:
@@ -152,6 +158,22 @@ class CommunitySharingService:
             "files": files,
         }
         self.repository.create(item)
+        self.statistics.increment_global(
+            session_delta=1,
+            bytes_delta=total_size,
+            files_delta=len(files),
+            now_iso=created_at.isoformat(),
+        )
+        self.statistics.upsert_session_snapshot(
+            token=token,
+            created_at=item["created_at"],
+            expires_at=item["expires_at"],
+            status=item["status"],
+            total_size=total_size,
+            share_url=self.build_share_url(token),
+            analytics=item["analytics"],
+            now_iso=created_at.isoformat(),
+        )
 
         return CommunitySessionResponse(
             token=token,
@@ -169,6 +191,15 @@ class CommunitySharingService:
             raise HTTPException(status_code=410, detail="Session expired")
 
         self.repository.set_status(token, "active")
+        self.statistics.update_session_status(
+            token=token,
+            status="active",
+            now_iso=self.utcnow().isoformat(),
+        )
+        self.statistics.increment_global(
+            completed_delta=1,
+            now_iso=self.utcnow().isoformat(),
+        )
         return CommunitySessionCompleteResponse(
             token=token,
             share_url=self.build_share_url(token),
@@ -176,7 +207,13 @@ class CommunitySharingService:
         )
 
     def get_share(self, token: str) -> CommunityShareResponse:
-        return self.normalize_item(self.get_share_or_404(token))
+        item = self.get_share_or_404(token)
+        analytics = item.get("analytics", {})
+        now_iso = self.utcnow().isoformat()
+        self.statistics.increment_global(visit_delta=1, now_iso=now_iso)
+        if analytics.get("country"):
+            self.statistics.increment_country(country=analytics["country"], delta=1, now_iso=now_iso)
+        return self.normalize_item(item)
 
     def get_download_url(self, token: str, file_id: str) -> str:
         item = self.get_share_or_404(token)
@@ -184,16 +221,24 @@ class CommunitySharingService:
         file_item = next((current for current in item["files"] if current["file_id"] == file_id), None)
         if not file_item:
             raise HTTPException(status_code=404, detail="File not found")
+        self.statistics.increment_global(
+            download_delta=1,
+            bytes_delta=int(file_item["size"]),
+            now_iso=self.utcnow().isoformat(),
+        )
         return generate_download_url(storage_key=file_item["storage_key"], expires_at=share.expires_at)
 
     def get_analytics_overview(self, limit: int = 100) -> CommunityAnalyticsOverviewResponse:
-        items = self.repository.list_sessions()
+        items = self.statistics.list_session_snapshots()
         ordered_items = sorted(items, key=lambda item: item.get("created_at", ""), reverse=True)
         recent_items = ordered_items[:limit]
 
         device_breakdown: dict[str, int] = {}
         os_breakdown: dict[str, int] = {}
         browser_breakdown: dict[str, int] = {}
+        country_breakdown = self.statistics.list_country_counts()
+        derived_country_breakdown: dict[str, int] = {}
+        global_stats = self.statistics.get_global()
 
         pending_sessions = 0
         active_sessions = 0
@@ -205,7 +250,7 @@ class CommunitySharingService:
                 pending_sessions += 1
             elif status == "active":
                 active_sessions += 1
-            elif status == "expired":
+            elif status in {"expired", "deleted", "queued_delete"}:
                 expired_sessions += 1
 
             analytics = item.get("analytics", {})
@@ -216,6 +261,16 @@ class CommunitySharingService:
             browser_breakdown[analytics.get("browser") or "Unknown"] = (
                 browser_breakdown.get(analytics.get("browser") or "Unknown", 0) + 1
             )
+            if analytics.get("country"):
+                country = str(analytics["country"]).strip()
+                if country:
+                    derived_country_breakdown[country] = derived_country_breakdown.get(country, 0) + 1
+
+        if derived_country_breakdown:
+            merged_country_breakdown = dict(derived_country_breakdown)
+            for country, count in country_breakdown.items():
+                merged_country_breakdown[country] = max(merged_country_breakdown.get(country, 0), count)
+            country_breakdown = merged_country_breakdown
 
         recent_sessions = [
             CommunityAnalyticsSessionResponse(
@@ -242,12 +297,17 @@ class CommunitySharingService:
         ]
 
         return CommunityAnalyticsOverviewResponse(
-            total_sessions=len(ordered_items),
+            total_sessions=int(global_stats.get("total_sessions", len(ordered_items))),
             pending_sessions=pending_sessions,
             active_sessions=active_sessions,
             expired_sessions=expired_sessions,
+            total_visits=int(global_stats.get("total_visits", 0)),
+            total_downloads=int(global_stats.get("total_downloads", 0)),
+            total_bytes_handled=int(global_stats.get("total_bytes_handled", 0)),
+            total_files_handled=int(global_stats.get("total_files_handled", 0)),
             device_breakdown=device_breakdown,
             os_breakdown=os_breakdown,
             browser_breakdown=browser_breakdown,
+            country_breakdown=country_breakdown,
             recent_sessions=recent_sessions,
         )

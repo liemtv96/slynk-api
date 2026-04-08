@@ -10,6 +10,14 @@ from app.config import settings
 ORIGIN_SECRET_HEADER = "x-slynk-origin-secret"
 
 
+def _bearer_token_from_header(request: Request) -> str:
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        return ""
+    return token
+
+
 def create_app() -> FastAPI:
     application = FastAPI(
         title=settings.PROJECT_NAME,
@@ -37,6 +45,12 @@ def create_app() -> FastAPI:
         provided_secret = request.headers.get(ORIGIN_SECRET_HEADER, "")
         if not compare_digest(provided_secret, expected_secret):
             return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+
+        expected_bearer = settings.PRIVATE_BEARER_TOKEN
+        if expected_bearer:
+            provided_bearer = _bearer_token_from_header(request)
+            if not compare_digest(provided_bearer, expected_bearer):
+                return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
         return await call_next(request)
 

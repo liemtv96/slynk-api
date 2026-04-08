@@ -79,7 +79,12 @@ class CommunityAnalyticsOverviewResponse(BaseModel):
     pending_sessions: int
     active_sessions: int
     expired_sessions: int
+    total_visits: int
+    total_downloads: int
+    total_bytes_handled: int
+    total_files_handled: int
     device_breakdown: dict[str, int]
     os_breakdown: dict[str, int]
     browser_breakdown: dict[str, int]
+    country_breakdown: dict[str, int]
     recent_sessions: list[CommunityAnalyticsSessionResponse]

@@ -17,6 +17,9 @@ Parameters:
   DefaultFileTtlHours:
     Type: Number
     Default: 8
+  PendingSessionStaleHours:
+    Type: Number
+    Default: 24
   MaxUploadBytes:
     Type: Number
     Default: 3221225472
@@ -26,24 +29,20 @@ Parameters:
   DailyIpCreateLimit:
     Type: Number
     Default: 5
-  ExpiryScanSchedule:
-    Type: String
-    Default: rate(5 minutes)
-  GeoEnrichSchedule:
-    Type: String
-    Default: rate(15 minutes)
+  ExpiryScanIntervalMinutes:
+    Type: Number
+    Default: 5
+    MinValue: 1
+  GeoEnrichIntervalMinutes:
+    Type: Number
+    Default: 15
+    MinValue: 1
   GeoEnrichEnabled:
     Type: String
     Default: "true"
   GeoEnrichBatchSize:
     Type: Number
     Default: 25
-  GeoLookupBaseUrl:
-    Type: String
-    Default: https://ipapi.co
-  GeoLookupToken:
-    Type: String
-    Default: ""
   AnalyticsApiKey:
     Type: String
     Default: ""
@@ -51,6 +50,10 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Shared secret that CloudFront injects to the API origin so direct origin access can be rejected.
+  PrivateBearerToken:
+    Type: String
+    NoEcho: true
+    Description: Private bearer token required from the trusted frontend server when calling the API.
   LambdaCodeS3Bucket:
     Type: String
     Description: S3 bucket containing the deployment zip for all Lambda functions.
@@ -160,6 +163,17 @@ Resources:
         AttributeName: ttl_epoch
         Enabled: true
 
+  StatisticsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: stat_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: stat_key
+          KeyType: HASH
+
   DeleteQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -193,6 +207,13 @@ Resources:
                 Resource: !GetAtt LiteTable.Arn
               - Effect: Allow
                 Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                Resource: !GetAtt StatisticsTable.Arn
+              - Effect: Allow
+                Action:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub "${LiteBucket.Arn}/*"
@@ -221,6 +242,11 @@ Resources:
                 Resource: !GetAtt LiteTable.Arn
               - Effect: Allow
                 Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt StatisticsTable.Arn
+              - Effect: Allow
+                Action:
                   - sqs:SendMessage
                 Resource: !GetAtt DeleteQueue.Arn
 
@@ -245,6 +271,10 @@ Resources:
                 Action:
                   - dynamodb:DeleteItem
                 Resource: !GetAtt LiteTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt StatisticsTable.Arn
               - Effect: Allow
                 Action:
                   - s3:DeleteObject
@@ -278,6 +308,11 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:UpdateItem
                 Resource: !GetAtt LiteTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt StatisticsTable.Arn
 
   ApiFunction:
     Type: AWS::Lambda::Function
@@ -301,8 +336,10 @@ Resources:
           SLYNK_S3_BUCKET: !Ref LiteBucket
           SLYNK_S3_PREFIX: !Ref S3Prefix
           SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref LiteTable
+          SLYNK_DYNAMO_STATISTICS_TABLE: !Ref StatisticsTable
           SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
           SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
+          SLYNK_PENDING_SESSION_STALE_HOURS: !Ref PendingSessionStaleHours
           SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
           SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
           SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
@@ -310,9 +347,10 @@ Resources:
           SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
           SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
           SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
-          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
-          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
+          SLYNK_GEO_LOOKUP_PROVIDER: maxmind
           SLYNK_ANALYTICS_API_KEY: !Ref AnalyticsApiKey
+          SLYNK_CLOUDFRONT_ORIGIN_SECRET: !Ref CloudFrontOriginSecret
+          SLYNK_PRIVATE_BEARER_TOKEN: !Ref PrivateBearerToken
 
   EnqueueExpiredSessionsFunction:
     Type: AWS::Lambda::Function
@@ -336,8 +374,10 @@ Resources:
           SLYNK_S3_BUCKET: !Ref LiteBucket
           SLYNK_S3_PREFIX: !Ref S3Prefix
           SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref LiteTable
+          SLYNK_DYNAMO_STATISTICS_TABLE: !Ref StatisticsTable
           SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
           SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
+          SLYNK_PENDING_SESSION_STALE_HOURS: !Ref PendingSessionStaleHours
           SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
           SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
           SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
@@ -345,8 +385,7 @@ Resources:
           SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
           SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
           SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
-          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
-          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
+          SLYNK_GEO_LOOKUP_PROVIDER: maxmind
 
   ProcessDeleteQueueFunction:
     Type: AWS::Lambda::Function
@@ -370,8 +409,10 @@ Resources:
           SLYNK_S3_BUCKET: !Ref LiteBucket
           SLYNK_S3_PREFIX: !Ref S3Prefix
           SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref LiteTable
+          SLYNK_DYNAMO_STATISTICS_TABLE: !Ref StatisticsTable
           SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
           SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
+          SLYNK_PENDING_SESSION_STALE_HOURS: !Ref PendingSessionStaleHours
           SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
           SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
           SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
@@ -379,8 +420,7 @@ Resources:
           SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
           SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
           SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
-          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
-          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
+          SLYNK_GEO_LOOKUP_PROVIDER: maxmind
 
   EnrichSessionGeolocationFunction:
     Type: AWS::Lambda::Function
@@ -404,8 +444,10 @@ Resources:
           SLYNK_S3_BUCKET: !Ref LiteBucket
           SLYNK_S3_PREFIX: !Ref S3Prefix
           SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref LiteTable
+          SLYNK_DYNAMO_STATISTICS_TABLE: !Ref StatisticsTable
           SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
           SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
+          SLYNK_PENDING_SESSION_STALE_HOURS: !Ref PendingSessionStaleHours
           SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
           SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
           SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
@@ -413,8 +455,7 @@ Resources:
           SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
           SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
           SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
-          SLYNK_GEO_LOOKUP_BASE_URL: !Ref GeoLookupBaseUrl
-          SLYNK_GEO_LOOKUP_TOKEN: !Ref GeoLookupToken
+          SLYNK_GEO_LOOKUP_PROVIDER: maxmind
           SLYNK_CLOUDFRONT_ORIGIN_SECRET: !Ref CloudFrontOriginSecret
 
   ApiLambdaIntegration:
@@ -446,7 +487,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "slynk-api-expiry-scan-${Environment}"
-      ScheduleExpression: !Ref ExpiryScanSchedule
+      ScheduleExpression: !Sub "rate(${ExpiryScanIntervalMinutes} minutes)"
       State: ENABLED
       Targets:
         - Arn: !GetAtt EnqueueExpiredSessionsFunction.Arn
@@ -464,7 +505,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "slynk-api-geo-enrich-${Environment}"
-      ScheduleExpression: !Ref GeoEnrichSchedule
+      ScheduleExpression: !Sub "rate(${GeoEnrichIntervalMinutes} minutes)"
       State: ENABLED
       Targets:
         - Arn: !GetAtt EnrichSessionGeolocationFunction.Arn
@@ -497,6 +538,8 @@ Outputs:
     Value: !Ref LiteBucket
   DynamoTableName:
     Value: !Ref LiteTable
+  StatisticsTableName:
+    Value: !Ref StatisticsTable
   DeleteQueueUrl:
     Value: !Ref DeleteQueue
   DeleteQueueArn:

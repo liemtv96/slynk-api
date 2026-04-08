@@ -1,5 +1,6 @@
 from app.aws.dynamo import get_dynamo_resource
 from app.config import settings
+from app.repositories.dynamo_types import to_dynamo_value
 
 
 class CommunitySessionRepository:
@@ -10,7 +11,7 @@ class CommunitySessionRepository:
         return get_dynamo_resource().Table(settings.DYNAMO_COMMUNITY_TABLE)
 
     def create(self, item: dict) -> None:
-        self._table().put_item(Item=item)
+        self._table().put_item(Item=to_dynamo_value(item))
 
     def get(self, token: str) -> dict | None:
         response = self._table().get_item(Key={"token": token})
@@ -29,6 +30,14 @@ class CommunitySessionRepository:
 
         response = self._table().scan(
             FilterExpression=Attr("status").eq("active") & Attr("expires_at").lte(now_iso),
+        )
+        return response.get("Items", [])
+
+    def scan_stale_pending(self, cutoff_iso: str) -> list[dict]:
+        from boto3.dynamodb.conditions import Attr
+
+        response = self._table().scan(
+            FilterExpression=Attr("status").eq("pending") & Attr("created_at").lte(cutoff_iso),
         )
         return response.get("Items", [])
 
@@ -87,7 +96,7 @@ class CommunitySessionRepository:
         self._table().update_item(
             Key={"token": token},
             UpdateExpression="SET analytics = :analytics",
-            ExpressionAttributeValues={":analytics": analytics},
+            ExpressionAttributeValues={":analytics": to_dynamo_value(analytics)},
         )
 
     def consume_daily_ip_quota(self, *, ip_address: str, day_key: str, limit: int, ttl_epoch: int, now_iso: str) -> bool:

@@ -5,6 +5,8 @@ class Settings:
     """Configuration values loaded from environment variables."""
 
     def __init__(self) -> None:
+        app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
         # AWS
         self.AWS_REGION: str = os.getenv("AWS_REGION", "ap-southeast-1")
         self.AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "xxxx")
@@ -23,6 +25,7 @@ class Settings:
         # DynamoDB
         self.DYNAMO_PREFIX: str = os.getenv("SLYNK_DYNAMO_PREFIX", "slynk_")
         self.DYNAMO_COMMUNITY_TABLE: str = os.getenv("SLYNK_DYNAMO_COMMUNITY_TABLE", f"{self.DYNAMO_PREFIX}community_files")
+        self.DYNAMO_STATISTICS_TABLE: str = os.getenv("SLYNK_DYNAMO_STATISTICS_TABLE", f"{self.DYNAMO_PREFIX}statistics")
 
         # S3
         s3_endpoint_url = os.getenv("SLYNK_S3_ENDPOINT_URL", "").strip()
@@ -32,15 +35,18 @@ class Settings:
         self.PUBLIC_BASE_URL: str = os.getenv("SLYNK_PUBLIC_BASE_URL", "")
         self.MAX_PRESIGNED_URL_AGE: int = int(os.getenv("SLYNK_MAX_PRESIGNED_URL_AGE", "3600"))
         self.DEFAULT_FILE_TTL_HOURS: int = int(os.getenv("SLYNK_DEFAULT_FILE_TTL_HOURS", "8"))
+        self.PENDING_SESSION_STALE_HOURS: int = int(os.getenv("SLYNK_PENDING_SESSION_STALE_HOURS", "24"))
         self.MAX_UPLOAD_BYTES: int = int(os.getenv("SLYNK_MAX_UPLOAD_BYTES", str(3 * 1024 * 1024 * 1024)))
         self.DAILY_IP_CREATE_LIMIT: int = int(os.getenv("SLYNK_DAILY_IP_CREATE_LIMIT", "5"))
         self.GEO_ENRICH_ENABLED: bool = os.getenv("SLYNK_GEO_ENRICH_ENABLED", "true").lower() == "true"
         self.GEO_ENRICH_BATCH_SIZE: int = int(os.getenv("SLYNK_GEO_ENRICH_BATCH_SIZE", "25"))
         self.GEO_ENRICH_TIMEOUT_SECONDS: int = int(os.getenv("SLYNK_GEO_ENRICH_TIMEOUT_SECONDS", "5"))
-        self.GEO_LOOKUP_BASE_URL: str = os.getenv("SLYNK_GEO_LOOKUP_BASE_URL", "https://ipapi.co")
-        self.GEO_LOOKUP_TOKEN: str = os.getenv("SLYNK_GEO_LOOKUP_TOKEN", "")
+        self.GEO_LOOKUP_PROVIDER: str = os.getenv("SLYNK_GEO_LOOKUP_PROVIDER", "maxmind")
+        self.GEOIP_CITY_DB_PATH: str = os.path.join(app_root, "ipdb", "GeoLite2-City.mmdb")
+        self.GEOIP_COUNTRY_DB_PATH: str = os.path.join(app_root, "ipdb", "GeoLite2-Country.mmdb")
         self.ANALYTICS_API_KEY: str = os.getenv("SLYNK_ANALYTICS_API_KEY", "")
         self.CLOUDFRONT_ORIGIN_SECRET: str = os.getenv("SLYNK_CLOUDFRONT_ORIGIN_SECRET", "")
+        self.PRIVATE_BEARER_TOKEN: str = os.getenv("SLYNK_PRIVATE_BEARER_TOKEN", "")
 
         # SQS
         self.SQS_DELETE_QUEUE_URL: str = os.getenv("SLYNK_SQS_DELETE_QUEUE_URL", "")
