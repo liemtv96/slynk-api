@@ -11,6 +11,16 @@ project, please keep a small acknowledgement to the original project and me (aut
 where practical. See [NOTICE](NOTICE)
 and [TRADEMARKS.md](TRADEMARKS.md).
 
+## Support The Project
+
+If this project helps you, saves you time, or gives you a useful starting point,
+you can support its continued maintenance and development here:
+
+- PayPal: [paypal.me/rintran137](https://www.paypal.me/rintran137)
+- Ko-fi: [ko-fi.com/rintran](https://ko-fi.com/rintran)
+
+Support is never required, but it is genuinely appreciated
+
 ## Project Layout
 
 ```text
