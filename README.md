@@ -2,6 +2,10 @@
 
 Minimal serverless backend for temporary file sharing with direct browser uploads to S3
 
+## Demo
+
+You can try a live demo here: [slynk.rilab.space](https://slynk.rilab.space)
+
 ## License
 
 This project is licensed under Apache 2.0. See [LICENSE](LICENSE).
