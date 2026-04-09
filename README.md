@@ -1,6 +1,15 @@
-# Lite Upload API
+# Slynk Lite | File Upload Sharing API
 
-Minimal serverless backend for temporary file sharing with direct browser uploads to S3.
+Minimal serverless backend for temporary file sharing with direct browser uploads to S3
+
+## License
+
+This project is licensed under Apache 2.0. See [LICENSE](/home/tranvinhliem/PycharmProjects/slynk-api-lite/LICENSE).
+
+Forks and independent development are welcome. If you build on top of this
+project, please keep a small acknowledgement to the original project and me (author)
+where practical. See [NOTICE](/home/tranvinhliem/PycharmProjects/slynk-api-lite/NOTICE)
+and [TRADEMARKS.md](/home/tranvinhliem/PycharmProjects/slynk-api-lite/TRADEMARKS.md).
 
 ## Project Layout
 
