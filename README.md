@@ -34,17 +34,28 @@ app/
   api/
     routes/slynk.py            # HTTP endpoints (thin layer)
     schemas/slynk.py           # Request/response models
-  services/slynk_sharing.py          # Business logic
-  repositories/slynk_sessions.py     # DynamoDB reads/writes
   storage/s3.py                # S3 helper functions
   aws/
     dynamo.py                  # Dynamo client/resource access
     sqs.py                     # SQS client + enqueue helper
+  repositories/
+    slynk_sessions.py          # DynamoDB session reads/writes
+    slynk_statistics.py        # Aggregate counters and analytics snapshots
+  services/
+    slynk_sharing.py           # Main sharing business logic
+    ip_geolocation.py          # GeoIP enrichment service
   jobs/slynk_cleanup.py        # Expiry scan and delete queue handlers
 
 main.py                        # Backward-compatible app entrypoint
+lambda_http.py                 # Mangum adapter for Lambda/API Gateway
 aws_lambda_handlers.py         # Backward-compatible lambda exports
-scripts/                       # Local scripts for queue/expiry jobs
+scripts/
+  enqueue_expired_slynk_files.py   # Local expiry scan runner
+  process_delete_queue.py          # Local SQS delete worker runner
+  enrich_session_geolocation.py    # Local geo enrichment runner
+ipdb/                          # Local MaxMind GeoIP databases
+template.yaml                  # AWS SAM template
+cloudformation.yaml            # Plain CloudFormation template
 tests/                         # Unit tests
 ```
 
