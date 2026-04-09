@@ -4,12 +4,12 @@ Minimal serverless backend for temporary file sharing with direct browser upload
 
 ## License
 
-This project is licensed under Apache 2.0. See [LICENSE](/home/tranvinhliem/PycharmProjects/slynk-api-lite/LICENSE).
+This project is licensed under Apache 2.0. See [LICENSE](LICENSE).
 
 Forks and independent development are welcome. If you build on top of this
 project, please keep a small acknowledgement to the original project and me (author)
-where practical. See [NOTICE](/home/tranvinhliem/PycharmProjects/slynk-api-lite/NOTICE)
-and [TRADEMARKS.md](/home/tranvinhliem/PycharmProjects/slynk-api-lite/TRADEMARKS.md).
+where practical. See [NOTICE](NOTICE)
+and [TRADEMARKS.md](TRADEMARKS.md).
 
 ## Project Layout
 
@@ -57,7 +57,7 @@ The top-level `core/`, `routers/`, `schemas/`, and `storage/` modules remain as 
 
 ## Lambda Handlers
 
-Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmProjects/slynk-api-lite/aws_lambda_handlers.py):
+Handlers are exported from [aws_lambda_handlers.py](aws_lambda_handlers.py):
 
 - `enqueue_expired_sessions_handler`
 - `process_delete_queue_handler`
@@ -107,7 +107,7 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 
 - IP addresses are stored internally in DynamoDB and are not returned by the public analytics endpoint.
 - A scheduled background job enriches stored sessions with `country`, `region`, `city`, `latitude`, and `longitude`.
-- The local entrypoint is [enrich_session_geolocation.py](/home/riottecboi/PycharmProjects/slynk-api-lite/scripts/enrich_session_geolocation.py).
+- The local entrypoint is [enrich_session_geolocation.py](scripts/enrich_session_geolocation.py).
 - Non-public IPs such as `127.0.0.1` or RFC1918 addresses are skipped and marked internally so they are not retried forever.
 - The default provider configuration targets `https://ipapi.co/<ip>/json/`. Review provider limits before using this in production.
 
@@ -131,8 +131,8 @@ uvicorn main:app --reload --port 8000
 ## Docker Compose
 
 Files included:
-- [Dockerfile](/home/tranvinhliem/PycharmProjects/slynk-api-lite/Dockerfile)
-- [docker-compose.yml](/home/tranvinhliem/PycharmProjects/slynk-api-lite/docker-compose.yml)
+- [Dockerfile](Dockerfile)
+- [docker-compose.yml](docker-compose.yml)
 
 Run:
 
@@ -150,12 +150,12 @@ docker compose down
 ## AWS Lambda (SAM)
 
 This repo now includes:
-- [template.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-lite/template.yaml) with:
+- [template.yaml](template.yaml) with:
   - `ApiFunction` (FastAPI via `lambda_http.handler`)
   - `EnqueueExpiredSessionsFunction` (scheduled scan)
   - `ProcessDeleteQueueFunction` (SQS consumer)
   - Managed `S3`, `DynamoDB`, `SQS`, and `HttpApi` resources
-- [lambda_http.py](/home/tranvinhliem/PycharmProjects/slynk-api-lite/lambda_http.py) (`Mangum` adapter)
+- [lambda_http.py](lambda_http.py) (`Mangum` adapter)
 
 Build and deploy:
 
@@ -178,7 +178,7 @@ After deploy:
 ## AWS Lambda (Plain CloudFormation)
 
 Template:
-- [cloudformation.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-lite/cloudformation.yaml)
+- [cloudformation.yaml](cloudformation.yaml)
 
 This template is non-SAM and expects a prebuilt Lambda zip uploaded to S3.
 
