@@ -1,14 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Slynk Community API - FastAPI Lambda + cleanup workers
+Description: Slynk Lite API - FastAPI Lambda + cleanup workers
 
 Parameters:
   Environment:
     Type: String
     Default: prod
-  ApiPrefix:
-    Type: String
-    Default: /api/v1
   CorsOrigins:
     Type: String
     Default: "*"
@@ -21,6 +18,9 @@ Parameters:
   DefaultFileTtlHours:
     Type: Number
     Default: 8
+  PendingSessionStaleHours:
+    Type: Number
+    Default: 24
   MaxUploadBytes:
     Type: Number
     Default: 3221225472
@@ -30,9 +30,38 @@ Parameters:
   DailyIpCreateLimit:
     Type: Number
     Default: 5
-  ExpiryScanSchedule:
+  ExpiryScanIntervalMinutes:
+    Type: Number
+    Default: 5
+    MinValue: 1
+  GeoEnrichIntervalMinutes:
+    Type: Number
+    Default: 15
+    MinValue: 1
+  GeoEnrichEnabled:
     Type: String
-    Default: rate(5 minutes)
+    Default: "true"
+  GeoEnrichBatchSize:
+    Type: Number
+    Default: 25
+  AnalyticsApiKey:
+    Type: String
+    Default: ""
+  CloudFrontOriginSecret:
+    Type: String
+    NoEcho: true
+    Description: Shared secret that CloudFront injects to the API origin so direct origin access can be rejected.
+  PrivateBearerToken:
+    Type: String
+    NoEcho: true
+    Description: Private bearer token required from the trusted frontend server when calling the API.
+  ApiCloudFrontPriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues:
+      - PriceClass_All
+      - PriceClass_200
+      - PriceClass_100
 
 Globals:
   Function:
@@ -42,37 +71,96 @@ Globals:
     Tracing: Active
     Environment:
       Variables:
-        SLYNK_PROJECT_NAME: Slynk Community API
+        SLYNK_PROJECT_NAME: Slynk Lite API
         SLYNK_ENV: !Ref Environment
-        SLYNK_API_PREFIX: !Ref ApiPrefix
+        SLYNK_API_GATEWAY_BASE_PATH: /
         SLYNK_CORS_ORIGINS: !Ref CorsOrigins
-        SLYNK_S3_BUCKET: !Ref CommunityBucket
+        SLYNK_S3_BUCKET: !Ref LiteBucket
         SLYNK_S3_PREFIX: !Ref S3Prefix
-        SLYNK_S3_ENDPOINT_URL: ""
-        SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref CommunityTable
+        SLYNK_DYNAMO_COMMUNITY_TABLE: !Ref LiteTable
+        SLYNK_DYNAMO_STATISTICS_TABLE: !Ref StatisticsTable
         SLYNK_SQS_DELETE_QUEUE_URL: !Ref DeleteQueue
         SLYNK_DEFAULT_FILE_TTL_HOURS: !Ref DefaultFileTtlHours
+        SLYNK_PENDING_SESSION_STALE_HOURS: !Ref PendingSessionStaleHours
         SLYNK_MAX_UPLOAD_BYTES: !Ref MaxUploadBytes
         SLYNK_MAX_PRESIGNED_URL_AGE: !Ref MaxPresignedUrlAge
         SLYNK_DAILY_IP_CREATE_LIMIT: !Ref DailyIpCreateLimit
         SLYNK_PUBLIC_BASE_URL: !Ref PublicBaseUrl
+        SLYNK_GEO_ENRICH_ENABLED: !Ref GeoEnrichEnabled
+        SLYNK_GEO_ENRICH_BATCH_SIZE: !Ref GeoEnrichBatchSize
+        SLYNK_GEO_ENRICH_TIMEOUT_SECONDS: 5
+        SLYNK_GEO_LOOKUP_PROVIDER: maxmind
+        SLYNK_ANALYTICS_API_KEY: !Ref AnalyticsApiKey
+        SLYNK_CLOUDFRONT_ORIGIN_SECRET: !Ref CloudFrontOriginSecret
+        SLYNK_PRIVATE_BEARER_TOKEN: !Ref PrivateBearerToken
 
 Resources:
-  CommunityApi:
+  LiteApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      StageName: v1
+      StageName: $default
 
-  CommunityBucket:
+  ApiCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2
+        IPV6Enabled: true
+        PriceClass: !Ref ApiCloudFrontPriceClass
+        Origins:
+          - Id: ApiGatewayOrigin
+            DomainName: !Select [2, !Split ["/", !GetAtt LiteApi.ApiEndpoint]]
+            OriginCustomHeaders:
+              - HeaderName: X-Slynk-Origin-Secret
+                HeaderValue: !Ref CloudFrontOriginSecret
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              HTTPSPort: 443
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: ApiGatewayOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - PATCH
+            - POST
+            - DELETE
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+
+  LiteBucket:
     Type: AWS::S3::Bucket
     Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedMethods:
+              - PUT
+              - GET
+              - HEAD
+            AllowedHeaders:
+              - "*"
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3000
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-  CommunityTable:
+  LiteTable:
     Type: AWS::DynamoDB::Table
     Properties:
       BillingMode: PAY_PER_REQUEST
@@ -85,6 +173,17 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl_epoch
         Enabled: true
+
+  StatisticsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: stat_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: stat_key
+          KeyType: HASH
 
   DeleteQueue:
     Type: AWS::SQS::Queue
@@ -103,13 +202,13 @@ Resources:
         ApiProxy:
           Type: HttpApi
           Properties:
-            ApiId: !Ref CommunityApi
+            ApiId: !Ref LiteApi
             Path: /{proxy+}
             Method: ANY
         ApiRoot:
           Type: HttpApi
           Properties:
-            ApiId: !Ref CommunityApi
+            ApiId: !Ref LiteApi
             Path: /
             Method: ANY
       Policies:
@@ -123,13 +222,21 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:DeleteItem
                 - dynamodb:Scan
-              Resource: !GetAtt CommunityTable.Arn
+              Resource: !GetAtt LiteTable.Arn
+            - Sid: StatisticsReadWrite
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Scan
+              Resource: !GetAtt StatisticsTable.Arn
             - Sid: S3PresignAccess
               Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
-              Resource: !Sub "${CommunityBucket.Arn}/*"
+              Resource: !Sub "${LiteBucket.Arn}/*"
 
   EnqueueExpiredSessionsFunction:
     Type: AWS::Serverless::Function
@@ -140,7 +247,7 @@ Resources:
         ExpiryScanSchedule:
           Type: Schedule
           Properties:
-            Schedule: !Ref ExpiryScanSchedule
+            Schedule: !Sub "rate(${ExpiryScanIntervalMinutes} minutes)"
             Enabled: true
       Policies:
         - Version: "2012-10-17"
@@ -150,7 +257,13 @@ Resources:
               Action:
                 - dynamodb:Scan
                 - dynamodb:UpdateItem
-              Resource: !GetAtt CommunityTable.Arn
+              Resource: !GetAtt LiteTable.Arn
+            - Sid: StatsRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt StatisticsTable.Arn
             - Sid: SendDeleteJobs
               Effect: Allow
               Action:
@@ -176,12 +289,17 @@ Resources:
               Effect: Allow
               Action:
                 - dynamodb:DeleteItem
-              Resource: !GetAtt CommunityTable.Arn
+              Resource: !GetAtt LiteTable.Arn
+            - Sid: StatsUpdateDelete
+              Effect: Allow
+              Action:
+                - dynamodb:UpdateItem
+              Resource: !GetAtt StatisticsTable.Arn
             - Sid: S3Delete
               Effect: Allow
               Action:
                 - s3:DeleteObject
-              Resource: !Sub "${CommunityBucket.Arn}/*"
+              Resource: !Sub "${LiteBucket.Arn}/*"
             - Sid: QueueReceiveDelete
               Effect: Allow
               Action:
@@ -190,14 +308,46 @@ Resources:
                 - sqs:GetQueueAttributes
               Resource: !GetAtt DeleteQueue.Arn
 
+  EnrichSessionGeolocationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: aws_lambda_handlers.enrich_session_geolocation_handler
+      Events:
+        GeoEnrichSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: !Sub "rate(${GeoEnrichIntervalMinutes} minutes)"
+            Enabled: true
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: DynamoScanUpdateGeo
+              Effect: Allow
+              Action:
+                - dynamodb:Scan
+                - dynamodb:UpdateItem
+              Resource: !GetAtt LiteTable.Arn
+            - Sid: GeoStatsRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt StatisticsTable.Arn
+
 Outputs:
   ApiUrl:
     Description: HTTP API endpoint
-    Value: !Sub "https://${CommunityApi}.execute-api.${AWS::Region}.amazonaws.com/v1"
+    Value: !Sub "https://${LiteApi}.execute-api.${AWS::Region}.amazonaws.com"
+  ApiCloudFrontUrl:
+    Description: CloudFront URL in front of the API
+    Value: !Sub "https://${ApiCloudFrontDistribution.DomainName}"
   BucketName:
-    Value: !Ref CommunityBucket
+    Value: !Ref LiteBucket
   DynamoTableName:
-    Value: !Ref CommunityTable
+    Value: !Ref LiteTable
+  StatisticsTableName:
+    Value: !Ref StatisticsTable
   DeleteQueueUrl:
     Value: !Ref DeleteQueue
   DeleteQueueArn:

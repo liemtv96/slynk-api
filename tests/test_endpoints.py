@@ -26,3 +26,12 @@ def test_root_endpoint_uses_env_project_name(monkeypatch, tmp_path):
     assert body["status"] == "ok"
     assert body["service"] == "Testable Slynk"
     assert str(main_module.app.url_path_for("root")) == "/"
+
+
+def test_app_registers_lite_routes(monkeypatch, tmp_path):
+    main_module = load_app(monkeypatch, tmp_path, project_name="Testable Slynk")
+
+    route_paths = {route.path for route in main_module.app.routes}
+
+    assert "/lite/sessions" in route_paths
+    assert "/lite/analytics/overview" in route_paths

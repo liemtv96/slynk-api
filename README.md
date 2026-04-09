@@ -1,6 +1,29 @@
-# Community Upload API
+# Slynk Lite | File Upload Sharing API
 
-Minimal serverless backend for temporary file sharing with direct browser uploads to S3.
+Minimal serverless backend for temporary file sharing with direct browser uploads to S3
+
+## Demo
+
+You can try a live demo here: [slynk.rilab.space](https://slynk.rilab.space)
+
+## License
+
+This project is licensed under Apache 2.0. See [LICENSE](LICENSE).
+
+Forks and independent development are welcome. If you build on top of this
+project, please keep a small acknowledgement to the original project and me (author)
+where practical. See [NOTICE](NOTICE)
+and [TRADEMARKS.md](TRADEMARKS.md).
+
+## Support The Project
+
+If this project helps you, saves you time, or gives you a useful starting point,
+you can support its continued maintenance and development here:
+
+- PayPal: [paypal.me/rintran137](https://www.paypal.me/rintran137)
+- Ko-fi: [ko-fi.com/rintran](https://ko-fi.com/rintran)
+
+Support is never required, but it is genuinely appreciated
 
 ## Project Layout
 
@@ -29,11 +52,11 @@ The top-level `core/`, `routers/`, `schemas/`, and `storage/` modules remain as 
 
 ## Runtime Flow
 
-1. `POST /api/v1/community/sessions` creates a pending upload session and presigned S3 upload URLs.
+1. `POST /lite/sessions` creates a pending upload session and presigned S3 upload URLs.
 2. Browser uploads files directly to S3.
-3. `POST /api/v1/community/sessions/{token}/complete` marks the session `active` and returns the share URL.
-4. `GET /api/v1/community/shares/{token}` returns public share metadata.
-5. `GET /api/v1/community/shares/{token}/files/{file_id}/download` returns a presigned S3 download URL.
+3. `POST /lite/sessions/{token}/complete` marks the session `active` and returns the share URL.
+4. `GET /lite/shares/{token}` returns public share metadata.
+5. `GET /lite/shares/{token}/files/{file_id}/download` returns a presigned S3 download URL.
 6. Background job scans for expired active sessions and enqueues delete jobs.
 7. Queue consumer deletes S3 objects and removes DynamoDB records.
 
@@ -48,14 +71,13 @@ The top-level `core/`, `routers/`, `schemas/`, and `storage/` modules remain as 
 
 ## Lambda Handlers
 
-Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmProjects/slynk-api-community/aws_lambda_handlers.py):
+Handlers are exported from [aws_lambda_handlers.py](aws_lambda_handlers.py):
 
 - `enqueue_expired_sessions_handler`
 - `process_delete_queue_handler`
 
 ## Required Environment
 
-- `SLYNK_API_PREFIX`
 - `SLYNK_CORS_ORIGINS`
 - `SLYNK_S3_BUCKET`
 - `SLYNK_S3_PREFIX`
@@ -63,16 +85,45 @@ Handlers are exported from [aws_lambda_handlers.py](/home/tranvinhliem/PycharmPr
 - `SLYNK_DYNAMO_COMMUNITY_TABLE`
 - `SLYNK_SQS_DELETE_QUEUE_URL`
 - `SLYNK_DEFAULT_FILE_TTL_HOURS=8`
+- `SLYNK_PENDING_SESSION_STALE_HOURS=24`
 - `SLYNK_MAX_UPLOAD_BYTES=3221225472`
 - `SLYNK_DAILY_IP_CREATE_LIMIT=5`
 - `SLYNK_PUBLIC_BASE_URL`
+- `SLYNK_GEO_ENRICH_ENABLED=true`
+- `SLYNK_GEO_ENRICH_BATCH_SIZE=25`
+- `SLYNK_DYNAMO_STATISTICS_TABLE`
+- `SLYNK_ANALYTICS_API_KEY`
+- `SLYNK_CLOUDFRONT_ORIGIN_SECRET`
+- `SLYNK_PRIVATE_BEARER_TOKEN`
 
 ## IP Daily Limit
 
-- Session creation (`POST /api/v1/community/sessions`) is limited per client IP.
+- Session creation (`POST /lite/sessions`) is limited per client IP.
 - Default limit is `5` session creates per IP per UTC day.
 - Configure with `SLYNK_DAILY_IP_CREATE_LIMIT`.
 - Client IP is resolved from `X-Forwarded-For` (first value), then `X-Real-IP`, then direct socket IP.
+
+## Session Analytics
+
+- Each created session stores request analytics in DynamoDB for dashboarding.
+- Aggregate counters now live in a dedicated statistics table so totals survive session cleanup.
+- Expired `active` sessions are cleaned up on the normal expiry schedule; `pending` sessions are only deleted after they remain unchanged past `SLYNK_PENDING_SESSION_STALE_HOURS`.
+- Geolocation enrichment is designed for a local MaxMind GeoIP database rather than a remote IP API.
+- Captured fields include `client_ip`, `ip_source`, `forwarded_for`, `real_ip`, `user_agent`, `referer`, `origin`, `request_id`, and `created_date`.
+- Device-oriented fields are inferred from request headers: `browser`, `os`, `device_type`, `client_type`, `platform_hint`, and `mobile_hint`.
+- These values are heuristics for dashboards. Browser headers can usually distinguish desktop vs mobile web and OS family, but not the exact physical machine model with high confidence.
+- The daily IP quota still uses the resolved `client_ip` and remains separate from the session record.
+- `GET /lite/analytics/overview` returns public-safe dashboard data with counts and recent session analytics, excluding raw IP/header fields from the response payload.
+- If `SLYNK_ANALYTICS_API_KEY` is set, all API endpoints require the `X-API-Key` header.
+- If `SLYNK_CLOUDFRONT_ORIGIN_SECRET` is set, `/lite` requests must arrive through CloudFront with the injected `X-Slynk-Origin-Secret` header. Direct API Gateway access is rejected with `403`.
+
+## Geo Enrichment
+
+- IP addresses are stored internally in DynamoDB and are not returned by the public analytics endpoint.
+- A scheduled background job enriches stored sessions with `country`, `region`, `city`, `latitude`, and `longitude`.
+- The local entrypoint is [enrich_session_geolocation.py](scripts/enrich_session_geolocation.py).
+- Non-public IPs such as `127.0.0.1` or RFC1918 addresses are skipped and marked internally so they are not retried forever.
+- The default provider configuration targets `https://ipapi.co/<ip>/json/`. Review provider limits before using this in production.
 
 ## Run Locally
 
@@ -94,8 +145,8 @@ uvicorn main:app --reload --port 8000
 ## Docker Compose
 
 Files included:
-- [Dockerfile](/home/tranvinhliem/PycharmProjects/slynk-api-community/Dockerfile)
-- [docker-compose.yml](/home/tranvinhliem/PycharmProjects/slynk-api-community/docker-compose.yml)
+- [Dockerfile](Dockerfile)
+- [docker-compose.yml](docker-compose.yml)
 
 Run:
 
@@ -113,12 +164,12 @@ docker compose down
 ## AWS Lambda (SAM)
 
 This repo now includes:
-- [template.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-community/template.yaml) with:
+- [template.yaml](template.yaml) with:
   - `ApiFunction` (FastAPI via `lambda_http.handler`)
   - `EnqueueExpiredSessionsFunction` (scheduled scan)
   - `ProcessDeleteQueueFunction` (SQS consumer)
   - Managed `S3`, `DynamoDB`, `SQS`, and `HttpApi` resources
-- [lambda_http.py](/home/tranvinhliem/PycharmProjects/slynk-api-community/lambda_http.py) (`Mangum` adapter)
+- [lambda_http.py](lambda_http.py) (`Mangum` adapter)
 
 Build and deploy:
 
@@ -128,20 +179,20 @@ sam deploy --guided
 ```
 
 Recommended guided answers:
-- Stack name: `slynk-community-api`
+- Stack name: `slynk-lite-api`
 - Region: your AWS region
 - Confirm changes before deploy: `Yes`
 - Allow SAM CLI IAM role creation: `Yes`
 - Save arguments to configuration file: `Yes`
 
 After deploy:
-- Read the `ApiUrl` output from CloudFormation stack outputs.
+- Read the `ApiCloudFrontUrl` output from CloudFormation stack outputs and use it as the frontend API base URL.
 - Set `SLYNK_PUBLIC_BASE_URL` parameter to your frontend base URL for share links.
 
 ## AWS Lambda (Plain CloudFormation)
 
 Template:
-- [cloudformation.yaml](/home/tranvinhliem/PycharmProjects/slynk-api-community/cloudformation.yaml)
+- [cloudformation.yaml](cloudformation.yaml)
 
 This template is non-SAM and expects a prebuilt Lambda zip uploaded to S3.
 
@@ -151,7 +202,7 @@ This template is non-SAM and expects a prebuilt Lambda zip uploaded to S3.
 rm -rf build
 mkdir -p build
 pip install -r requirements.txt -t build
-cp -r app core routers schemas storage scripts *.py build/
+cp -r app core routers schemas storage scripts ipdb *.py build/
 cd build && zip -r ../deployment.zip . && cd ..
 ```
 
@@ -171,8 +222,11 @@ aws cloudformation deploy \
   --parameter-overrides \
     LambdaCodeS3Bucket=<artifact-bucket> \
     LambdaCodeS3Key=<artifact-key>.zip \
+    CloudFrontOriginSecret=<long-random-secret> \
     Environment=prod
 ```
+
+Use the `ApiCloudFrontUrl` stack output in the frontend. The raw `ApiUrl` is the direct API Gateway origin and should not be the browser-facing base URL once origin protection is enabled.
 
 ## Tests
 

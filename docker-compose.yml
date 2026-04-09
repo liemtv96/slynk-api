@@ -4,7 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - .env
+      - path: .env
+        required: false
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -15,3 +16,35 @@ services:
       retries: 5
       start_period: 20s
 
+  expiry-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    command: ["python", "scripts/enqueue_expired_slynk_files.py"]
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  delete-queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    command: ["python", "scripts/process_delete_queue.py"]
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  geo-enrichment-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    command: ["python", "scripts/enrich_session_geolocation.py"]
+    restart: unless-stopped
+    profiles: ["workers"]
