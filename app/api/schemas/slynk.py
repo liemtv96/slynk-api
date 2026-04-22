@@ -70,7 +70,6 @@ class CommunityAnalyticsSessionResponse(BaseModel):
     expires_at: datetime
     status: str
     total_size: int
-    share_url: str
     analytics: CommunitySessionAnalyticsDashboardResponse
 
 

@@ -279,7 +279,6 @@ class CommunitySharingService:
                 expires_at=self._to_datetime(item["expires_at"]),
                 status=item.get("status", "unknown"),
                 total_size=int(item["total_size"]),
-                share_url=self.build_share_url(item["token"]),
                 analytics=CommunitySessionAnalyticsDashboardResponse(
                     browser=item.get("analytics", {}).get("browser"),
                     os=item.get("analytics", {}).get("os"),
