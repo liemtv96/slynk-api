@@ -255,6 +255,7 @@ Resources:
             - Sid: DynamoScanUpdate
               Effect: Allow
               Action:
+                - dynamodb:GetItem
                 - dynamodb:Scan
                 - dynamodb:UpdateItem
               Resource: !GetAtt LiteTable.Arn
@@ -262,6 +263,7 @@ Resources:
               Effect: Allow
               Action:
                 - dynamodb:GetItem
+                - dynamodb:Scan
                 - dynamodb:UpdateItem
               Resource: !GetAtt StatisticsTable.Arn
             - Sid: SendDeleteJobs

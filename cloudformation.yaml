@@ -237,12 +237,14 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - dynamodb:GetItem
                   - dynamodb:Scan
                   - dynamodb:UpdateItem
                 Resource: !GetAtt LiteTable.Arn
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
+                  - dynamodb:Scan
                   - dynamodb:UpdateItem
                 Resource: !GetAtt StatisticsTable.Arn
               - Effect: Allow

@@ -121,6 +121,27 @@ class CommunityStatisticsRepository:
             ExpressionAttributeValues={":analytics": to_dynamo_value(analytics), ":now_iso": now_iso},
         )
 
+    def list_expired_active_sessions(self, *, now_iso: str) -> list[dict]:
+        from boto3.dynamodb.conditions import Attr
+
+        items: list[dict] = []
+        scan_kwargs: dict = {
+            "FilterExpression": Attr("stat_key").begins_with(self.SESSION_PREFIX)
+            & Attr("status").eq("active")
+            & Attr("expires_at").lte(now_iso)
+        }
+
+        while True:
+            response = self._table().scan(**scan_kwargs)
+            items.extend({key: self._number(value) for key, value in item.items()} for item in response.get("Items", []))
+
+            last_evaluated_key = response.get("LastEvaluatedKey")
+            if not last_evaluated_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_evaluated_key
+
+        return items
+
     def list_session_snapshots(self) -> list[dict]:
         items: list[dict] = []
         scan_kwargs: dict = {}
