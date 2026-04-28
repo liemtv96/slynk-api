@@ -38,7 +38,18 @@ def enqueue_expired_sessions_handler(event, context):
             }
         )
 
-    return {"enqueued": len(deduped_items)}
+    reconciled = 0
+    for snapshot in statistics.list_expired_active_sessions(now_iso=now_iso):
+        token = snapshot["token"]
+        if token in seen_tokens:
+            continue
+        if repository.get(token):
+            continue
+
+        statistics.update_session_status(token=token, status="deleted", now_iso=now_iso)
+        reconciled += 1
+
+    return {"enqueued": len(deduped_items), "reconciled": reconciled}
 
 
 def process_delete_queue_handler(event, context):
