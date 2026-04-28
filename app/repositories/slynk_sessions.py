@@ -25,21 +25,35 @@ class CommunitySessionRepository:
             ExpressionAttributeValues={":status": status},
         )
 
+    def scan_all(self, **scan_kwargs) -> list[dict]:
+        items: list[dict] = []
+        next_scan_kwargs = dict(scan_kwargs)
+
+        while True:
+            response = self._table().scan(**next_scan_kwargs)
+            items.extend(response.get("Items", []))
+
+            last_evaluated_key = response.get("LastEvaluatedKey")
+            if not last_evaluated_key:
+                break
+
+            next_scan_kwargs["ExclusiveStartKey"] = last_evaluated_key
+
+        return items
+
     def scan_expired_active(self, now_iso: str) -> list[dict]:
         from boto3.dynamodb.conditions import Attr
 
-        response = self._table().scan(
+        return self.scan_all(
             FilterExpression=Attr("status").eq("active") & Attr("expires_at").lte(now_iso),
         )
-        return response.get("Items", [])
 
     def scan_stale_pending(self, cutoff_iso: str) -> list[dict]:
         from boto3.dynamodb.conditions import Attr
 
-        response = self._table().scan(
+        return self.scan_all(
             FilterExpression=Attr("status").eq("pending") & Attr("created_at").lte(cutoff_iso),
         )
-        return response.get("Items", [])
 
     def delete(self, token: str) -> None:
         self._table().delete_item(Key={"token": token})
